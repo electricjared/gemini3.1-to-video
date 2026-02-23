@@ -1,0 +1,13 @@
+services:
+  converter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: animation-video-converter
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - MAX_UPLOAD_MB=10
+      - FFMPEG_PATH=ffmpeg
+    ports:
+      - "3000:3000"

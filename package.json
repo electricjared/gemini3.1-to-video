@@ -1,0 +1,18 @@
+{
+  "name": "animation-video-converter",
+  "version": "1.0.0",
+  "description": "Convert animated SVG code into MP4 video via web UI, API, or CLI",
+  "main": "src/server.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "NODE_ENV=development node --watch src/server.js",
+    "convert": "node scripts/convert.js",
+    "check": "node --check src/server.js && node --check src/lib/renderSvgToVideo.js && node --check src/lib/options.js && node --check scripts/convert.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "playwright": "^1.51.1"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+.env
+.DS_Store
+output/*.mp4
+output/*.mov
+tmp/
+playwright-report/
+coverage/
+*.log
