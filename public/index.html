@@ -140,6 +140,11 @@
         opacity: 0.7;
       }
 
+      .secondary-btn {
+        background: #d8e5e3;
+        color: #143035;
+      }
+
       .status {
         font-size: 0.95rem;
         color: var(--muted);
@@ -153,6 +158,30 @@
       .divider {
         border-top: 1px solid var(--line);
         padding-top: 12px;
+      }
+
+      .toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+
+      .toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
+
+      .text-report {
+        display: none;
+        border: 1px dashed #adc6c4;
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: #f7fbfb;
+        color: #12343a;
+        font-size: 0.9rem;
+        line-height: 1.35;
       }
     </style>
     <link
@@ -185,6 +214,17 @@
               placeholder="Paste your <svg>...</svg> animation code here"
             ></textarea>
           </div>
+
+          <div class="actions">
+            <button id="checkTextBtn" class="secondary-btn" type="button">Check Text in SVG</button>
+            <button id="stripTextBtn" class="secondary-btn" type="button">Check + Remove Text</button>
+            <label class="toggle" for="stripText">
+              <input id="stripText" name="stripText" type="checkbox" value="true" />
+              Remove text during conversion
+            </label>
+          </div>
+
+          <div id="textReport" class="text-report"></div>
 
           <div class="row">
             <div>
@@ -235,6 +275,11 @@
       const form = document.getElementById("convert-form");
       const statusEl = document.getElementById("status");
       const submitBtn = document.getElementById("submitBtn");
+      const animationCodeEl = document.getElementById("animationCode");
+      const animationFileEl = document.getElementById("animationFile");
+      const checkTextBtn = document.getElementById("checkTextBtn");
+      const stripTextBtn = document.getElementById("stripTextBtn");
+      const textReportEl = document.getElementById("textReport");
 
       function setStatus(message, isError = false) {
         statusEl.textContent = message;
@@ -247,6 +292,135 @@
         return match ? match[1] : fallbackName;
       }
 
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function extractSvgFromRawInput(rawInput) {
+        if (!rawInput || !rawInput.trim()) {
+          throw new Error("No animation code to inspect.");
+        }
+
+        let candidate = rawInput.trim();
+        const fencedMatch = candidate.match(/```(?:svg|xml|html)?\s*([\s\S]*?)```/i);
+        if (fencedMatch) {
+          candidate = fencedMatch[1].trim();
+        }
+
+        const svgMatch = candidate.match(/<svg[\s\S]*<\/svg>/i);
+        if (!svgMatch) {
+          throw new Error("Input must contain one <svg>...</svg> animation.");
+        }
+
+        return svgMatch[0];
+      }
+
+      function analyzeSvgText(svgContent, maxSnippets = 8) {
+        const blockRegex = /<text\b[^>]*>([\s\S]*?)<\/text>/gi;
+        const selfClosingRegex = /<text\b[^>]*\/>/gi;
+
+        const snippets = [];
+        let textBlockCount = 0;
+        let match;
+
+        while ((match = blockRegex.exec(svgContent)) !== null) {
+          textBlockCount += 1;
+          const snippet = match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+          if (snippet && snippets.length < maxSnippets) {
+            snippets.push(snippet);
+          }
+        }
+
+        textBlockCount += (svgContent.match(selfClosingRegex) || []).length;
+        return { textBlockCount, snippets };
+      }
+
+      function stripSvgText(svgContent) {
+        const blockRegex = /<text\b[\s\S]*?<\/text>\s*/gi;
+        const selfClosingRegex = /<text\b[^>]*\/>\s*/gi;
+
+        const removedTextBlocks =
+          (svgContent.match(blockRegex) || []).length + (svgContent.match(selfClosingRegex) || []).length;
+
+        return {
+          svgContent: svgContent.replace(blockRegex, "").replace(selfClosingRegex, ""),
+          removedTextBlocks,
+        };
+      }
+
+      function renderTextReport({ textBlockCount, snippets }, removedTextBlocks = 0) {
+        textReportEl.style.display = "block";
+
+        if (!textBlockCount) {
+          textReportEl.innerHTML = "No &lt;text&gt; blocks found in this SVG.";
+          return;
+        }
+
+        const listItems = snippets.map((snippet) => `<li>${escapeHtml(snippet)}</li>`).join("");
+        const removedInfo = removedTextBlocks > 0 ? ` Removed ${removedTextBlocks} block(s).` : "";
+        textReportEl.innerHTML = `<strong>Found ${textBlockCount} text block(s).</strong>${removedInfo}${
+          snippets.length ? `<ul>${listItems}</ul>` : ""
+        }`;
+      }
+
+      function analyzeCurrentCode() {
+        const rawInput = animationCodeEl.value;
+        const svgContent = extractSvgFromRawInput(rawInput);
+        const report = analyzeSvgText(svgContent);
+        return { rawInput, svgContent, report };
+      }
+
+      animationFileEl.addEventListener("change", async () => {
+        const [file] = animationFileEl.files || [];
+        if (!file) return;
+
+        try {
+          animationCodeEl.value = await file.text();
+          setStatus(`Loaded ${file.name} into editor. You can now check/remove text.`);
+        } catch (error) {
+          setStatus(error.message || "Failed to load file contents.", true);
+        }
+      });
+
+      checkTextBtn.addEventListener("click", () => {
+        try {
+          const { report } = analyzeCurrentCode();
+          renderTextReport(report);
+          setStatus(
+            report.textBlockCount
+              ? `Detected ${report.textBlockCount} text block(s).`
+              : "No visible SVG text blocks detected."
+          );
+        } catch (error) {
+          setStatus(error.message || "Could not inspect animation code.", true);
+        }
+      });
+
+      stripTextBtn.addEventListener("click", () => {
+        try {
+          const { rawInput, svgContent, report } = analyzeCurrentCode();
+          if (!report.textBlockCount) {
+            renderTextReport(report, 0);
+            setStatus("No text blocks found. Nothing was removed.");
+            return;
+          }
+
+          const stripped = stripSvgText(svgContent);
+          const updatedRaw = rawInput.replace(/<svg[\s\S]*<\/svg>/i, stripped.svgContent);
+          animationCodeEl.value = updatedRaw;
+
+          renderTextReport(report, stripped.removedTextBlocks);
+          setStatus(`Removed ${stripped.removedTextBlocks} text block(s) from the SVG code.`);
+        } catch (error) {
+          setStatus(error.message || "Could not remove text.", true);
+        }
+      });
+
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
 
@@ -254,6 +428,8 @@
         const fallbackName = data.get("fileName") || "animation.mp4";
 
         submitBtn.disabled = true;
+        checkTextBtn.disabled = true;
+        stripTextBtn.disabled = true;
         setStatus("Rendering frames and encoding video. This can take 10-60 seconds...");
 
         try {
@@ -275,6 +451,7 @@
 
           const blob = await response.blob();
           const fileName = getDownloadFileName(response.headers.get("Content-Disposition"), fallbackName);
+          const removedTextBlocks = Number.parseInt(response.headers.get("X-Removed-Text-Blocks") || "0", 10);
 
           const url = URL.createObjectURL(blob);
           const anchor = document.createElement("a");
@@ -285,11 +462,14 @@
           anchor.remove();
           URL.revokeObjectURL(url);
 
-          setStatus(`Done. Downloaded ${fileName}`);
+          const removedTextMsg = removedTextBlocks > 0 ? ` (removed ${removedTextBlocks} text block(s))` : "";
+          setStatus(`Done. Downloaded ${fileName}${removedTextMsg}`);
         } catch (error) {
           setStatus(error.message || "Conversion failed.", true);
         } finally {
           submitBtn.disabled = false;
+          checkTextBtn.disabled = false;
+          stripTextBtn.disabled = false;
         }
       });
     </script>

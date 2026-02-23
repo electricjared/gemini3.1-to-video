@@ -5,7 +5,7 @@ const express = require("express");
 const multer = require("multer");
 const { randomUUID } = require("node:crypto");
 const { renderSvgToMp4 } = require("./lib/renderSvgToVideo");
-const { extractSvg, parseConvertOptions } = require("./lib/options");
+const { analyzeSvgText, extractSvg, parseConvertOptions, stripSvgTextElements } = require("./lib/options");
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || "3000", 10);
@@ -25,11 +25,11 @@ app.get("/api/health", (_req, res) => {
 });
 
 function readAnimationCode(req) {
-  if (req.file?.buffer?.length) {
-    return req.file.buffer.toString("utf8");
-  }
   if (typeof req.body.animationCode === "string" && req.body.animationCode.trim().length > 0) {
     return req.body.animationCode;
+  }
+  if (req.file?.buffer?.length) {
+    return req.file.buffer.toString("utf8");
   }
   return "";
 }
@@ -40,8 +40,17 @@ app.post("/api/convert", upload.single("animationFile"), async (req, res) => {
 
   try {
     const rawAnimationCode = readAnimationCode(req);
-    const svgContent = extractSvg(rawAnimationCode);
+    const originalSvgContent = extractSvg(rawAnimationCode);
     const options = parseConvertOptions(req.body || {});
+    const textAnalysis = analyzeSvgText(originalSvgContent);
+
+    let svgContent = originalSvgContent;
+    let removedTextBlocks = 0;
+    if (options.stripText) {
+      const stripped = stripSvgTextElements(originalSvgContent);
+      svgContent = stripped.svgContent;
+      removedTextBlocks = stripped.removedTextBlocks;
+    }
 
     const outputPath = path.join(workRoot, options.outputFileName);
 
@@ -55,6 +64,9 @@ app.post("/api/convert", upload.single("animationFile"), async (req, res) => {
       crf: options.crf,
       backgroundColor: options.backgroundColor,
     });
+
+    res.setHeader("X-Detected-Text-Blocks", String(textAnalysis.textBlockCount));
+    res.setHeader("X-Removed-Text-Blocks", String(removedTextBlocks));
 
     res.download(outputPath, options.outputFileName, async (error) => {
       await fs.rm(workRoot, { recursive: true, force: true }).catch(() => undefined);

@@ -33,6 +33,7 @@ HEIGHT="${HEIGHT:-1920}"
 DURATION_SEC="${DURATION_SEC:-6}"
 FPS="${FPS:-30}"
 CRF="${CRF:-20}"
+STRIP_TEXT="${STRIP_TEXT:-false}"
 
 TMP_OUT="$(mktemp -t converted-video).mp4"
 
@@ -46,6 +47,7 @@ curl --fail --silent --show-error "$API_URL" \
   -F "durationSec=${DURATION_SEC}" \
   -F "fps=${FPS}" \
   -F "crf=${CRF}" \
+  -F "stripText=${STRIP_TEXT}" \
   --output "$TMP_OUT"
 
 echo "Uploading to ${REMOTE_TARGET} ..."

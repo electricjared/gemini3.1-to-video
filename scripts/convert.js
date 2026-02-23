@@ -2,7 +2,13 @@
 
 const fs = require("node:fs/promises");
 const path = require("node:path");
-const { extractSvg, parseConvertOptions, sanitizeFileName } = require("../src/lib/options");
+const {
+  analyzeSvgText,
+  extractSvg,
+  parseConvertOptions,
+  sanitizeFileName,
+  stripSvgTextElements,
+} = require("../src/lib/options");
 const { renderSvgToMp4 } = require("../src/lib/renderSvgToVideo");
 
 function parseArgs(argv) {
@@ -41,6 +47,7 @@ Options:
   --fps <number>          Frames per second (default: 30)
   --crf <12-35>           H.264 quality (lower = better quality, default: 20)
   --backgroundColor <hex> Background color for canvas (default: #ffffff)
+  --stripText <bool>      Remove all SVG <text> blocks before rendering (default: false)
 `);
 }
 
@@ -56,6 +63,7 @@ async function main() {
   const svgContent = extractSvg(rawInput);
 
   const options = parseConvertOptions(args);
+  const textAnalysis = analyzeSvgText(svgContent);
   const outputPath = path.resolve(args.output);
 
   // If output ends with a directory separator, append a sanitized file name.
@@ -67,8 +75,19 @@ async function main() {
   console.log("Starting render...");
   const startedAt = Date.now();
 
+  let finalSvgContent = svgContent;
+  if (options.stripText) {
+    const stripped = stripSvgTextElements(svgContent);
+    finalSvgContent = stripped.svgContent;
+    // eslint-disable-next-line no-console
+    console.log(`Removed ${stripped.removedTextBlocks} text block(s) before render.`);
+  } else if (textAnalysis.textBlockCount > 0) {
+    // eslint-disable-next-line no-console
+    console.log(`Detected ${textAnalysis.textBlockCount} text block(s). Use --stripText true to remove.`);
+  }
+
   await renderSvgToMp4({
-    svgContent,
+    svgContent: finalSvgContent,
     outputPath: finalOutput,
     width: options.width,
     height: options.height,

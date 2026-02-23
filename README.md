@@ -4,6 +4,7 @@ Convert animated SVG code (like your `ai_studio_code.txt`) into MP4 video files.
 
 This project includes:
 - Web UI (`/`) for upload + conversion + download
+- Text scanner + one-click text removal (`<text>` blocks)
 - HTTP API (`POST /api/convert`) for automation
 - CLI (`npm run convert`) for local/batch use
 - Docker deployment for hosting on your server
@@ -30,7 +31,8 @@ npm run convert -- \
   --width 1080 \
   --height 1920 \
   --durationSec 6 \
-  --fps 30
+  --fps 30 \
+  --stripText true
 ```
 
 ## 3. API usage (for scripts/automation)
@@ -44,10 +46,20 @@ curl -X POST http://localhost:3000/api/convert \
   -F "durationSec=6" \
   -F "fps=30" \
   -F "crf=20" \
+  -F "stripText=true" \
   -o ./output/elevator.mp4
 ```
 
 You can also send `animationCode` as raw text (instead of file upload).
+
+## 3b. Remove text overlays
+
+- In the web UI:
+  - `Check Text in SVG` shows detected text snippets.
+  - `Check + Remove Text` removes all SVG `<text>` blocks from code in the editor.
+  - `Remove text during conversion` applies server-side stripping on export.
+- In CLI/API:
+  - Use `--stripText true` (CLI) or `stripText=true` (API form field).
 
 ## 4. Deploy on your server (public use)
 
@@ -90,6 +102,12 @@ npm run convert -- --input ./incoming/my-scene.svg --output ./output/my-scene.mp
 ```
 
 This gives a single command for conversion + upload.
+
+To auto-strip captions with this script:
+
+```bash
+STRIP_TEXT=true ./scripts/convert-and-upload.sh ./incoming/my-scene.svg my-scene.mp4 user@your-server:/var/www/videos/
+```
 
 ## 6. Create and manage this as a new git repo
 

@@ -8,6 +8,7 @@ const DEFAULT_OPTIONS = {
   crf: 20,
   backgroundColor: "#ffffff",
   outputFileName: "animation.mp4",
+  stripText: false,
 };
 
 function parseNumber(value, fallback, min, max, integer = false) {
@@ -21,6 +22,16 @@ function parseNumber(value, fallback, min, max, integer = false) {
 
 function isHexColor(value) {
   return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(value);
+}
+
+function parseBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (value === undefined || value === null || value === "") return fallback;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return fallback;
 }
 
 function sanitizeFileName(inputName) {
@@ -59,6 +70,55 @@ function extractSvg(rawInput) {
   return svgMatch[0];
 }
 
+function normalizeTextSnippet(rawText) {
+  return rawText
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function analyzeSvgText(svgContent, maxSnippets = 6) {
+  const blockRegex = /<text\b[^>]*>([\s\S]*?)<\/text>/gi;
+  const selfClosingRegex = /<text\b[^>]*\/>/gi;
+
+  const snippets = [];
+  let blockCount = 0;
+  let match;
+
+  while ((match = blockRegex.exec(svgContent)) !== null) {
+    blockCount += 1;
+    const snippet = normalizeTextSnippet(match[1]);
+    if (snippet && snippets.length < maxSnippets) {
+      snippets.push(snippet);
+    }
+  }
+
+  const selfClosingCount = (svgContent.match(selfClosingRegex) || []).length;
+  return {
+    textBlockCount: blockCount + selfClosingCount,
+    snippets,
+  };
+}
+
+function stripSvgTextElements(svgContent) {
+  const blockRegex = /<text\b[\s\S]*?<\/text>\s*/gi;
+  const selfClosingRegex = /<text\b[^>]*\/>\s*/gi;
+
+  const blockCount = (svgContent.match(blockRegex) || []).length;
+  const selfClosingCount = (svgContent.match(selfClosingRegex) || []).length;
+  const removedTextBlocks = blockCount + selfClosingCount;
+
+  const strippedSvg = svgContent.replace(blockRegex, "").replace(selfClosingRegex, "");
+  return {
+    svgContent: strippedSvg,
+    removedTextBlocks,
+  };
+}
+
 function parseConvertOptions(input) {
   const options = {
     width: parseNumber(input.width, DEFAULT_OPTIONS.width, 256, 4096, true),
@@ -70,6 +130,7 @@ function parseConvertOptions(input) {
       ? String(input.backgroundColor)
       : DEFAULT_OPTIONS.backgroundColor,
     outputFileName: sanitizeFileName(input.fileName || input.outputFileName),
+    stripText: parseBoolean(input.stripText, DEFAULT_OPTIONS.stripText),
   };
 
   return options;
@@ -77,7 +138,9 @@ function parseConvertOptions(input) {
 
 module.exports = {
   DEFAULT_OPTIONS,
+  analyzeSvgText,
   extractSvg,
   parseConvertOptions,
+  stripSvgTextElements,
   sanitizeFileName,
 };
