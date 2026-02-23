@@ -150,6 +150,36 @@
         color: var(--muted);
       }
 
+      .progress-wrap {
+        display: none;
+        width: 100%;
+      }
+
+      .progress-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.88rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .progress-track {
+        width: 100%;
+        height: 10px;
+        border-radius: 999px;
+        background: #d8e5e3;
+        overflow: hidden;
+      }
+
+      .progress-bar {
+        width: 0%;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #ff8a00, #f4b663);
+        transition: width 180ms ease;
+      }
+
       .hint {
         font-size: 0.87rem;
         color: var(--muted);
@@ -267,6 +297,15 @@
             <button id="submitBtn" type="submit">Convert to MP4</button>
             <span id="status" class="status">Ready.</span>
           </div>
+          <div id="progressWrap" class="progress-wrap">
+            <div class="progress-head">
+              <span>Conversion progress</span>
+              <strong id="progressPercent">0%</strong>
+            </div>
+            <div class="progress-track">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+          </div>
         </form>
       </section>
     </main>
@@ -280,6 +319,10 @@
       const checkTextBtn = document.getElementById("checkTextBtn");
       const stripTextBtn = document.getElementById("stripTextBtn");
       const textReportEl = document.getElementById("textReport");
+      const progressWrapEl = document.getElementById("progressWrap");
+      const progressBarEl = document.getElementById("progressBar");
+      const progressPercentEl = document.getElementById("progressPercent");
+      let progressTimer = null;
 
       function setStatus(message, isError = false) {
         statusEl.textContent = message;
@@ -290,6 +333,42 @@
         if (!contentDisposition) return fallbackName;
         const match = contentDisposition.match(/filename="?([^";]+)"?/i);
         return match ? match[1] : fallbackName;
+      }
+
+      function setProgress(value) {
+        const bounded = Math.max(0, Math.min(100, Math.round(value)));
+        progressBarEl.style.width = `${bounded}%`;
+        progressPercentEl.textContent = `${bounded}%`;
+      }
+
+      function startProgress() {
+        progressWrapEl.style.display = "block";
+        setProgress(3);
+        const startedAt = Date.now();
+
+        progressTimer = window.setInterval(() => {
+          const elapsedSec = (Date.now() - startedAt) / 1000;
+          const estimated = 95 * (1 - Math.exp(-elapsedSec / 18));
+          const current = Number.parseInt(progressPercentEl.textContent, 10) || 0;
+          if (estimated > current) {
+            setProgress(estimated);
+          }
+        }, 250);
+      }
+
+      function stopProgress(finalValue = 100, keepVisible = true) {
+        if (progressTimer) {
+          window.clearInterval(progressTimer);
+          progressTimer = null;
+        }
+        setProgress(finalValue);
+
+        if (!keepVisible) {
+          window.setTimeout(() => {
+            progressWrapEl.style.display = "none";
+            setProgress(0);
+          }, 900);
+        }
       }
 
       function escapeHtml(value) {
@@ -430,10 +509,12 @@
         submitBtn.disabled = true;
         checkTextBtn.disabled = true;
         stripTextBtn.disabled = true;
+        startProgress();
         setStatus("Rendering frames and encoding video. This can take 10-60 seconds...");
 
         try {
-          const response = await fetch("/api/convert", {
+          const apiPrefix = window.location.pathname.startsWith("/text-to-video") ? "/text-to-video" : "";
+          const response = await fetch(`${apiPrefix}/api/convert`, {
             method: "POST",
             body: data,
           });
@@ -449,6 +530,7 @@
             throw new Error(errorMessage);
           }
 
+          stopProgress(98, true);
           const blob = await response.blob();
           const fileName = getDownloadFileName(response.headers.get("Content-Disposition"), fallbackName);
           const removedTextBlocks = Number.parseInt(response.headers.get("X-Removed-Text-Blocks") || "0", 10);
@@ -461,10 +543,12 @@
           anchor.click();
           anchor.remove();
           URL.revokeObjectURL(url);
+          stopProgress(100, false);
 
           const removedTextMsg = removedTextBlocks > 0 ? ` (removed ${removedTextBlocks} text block(s))` : "";
           setStatus(`Done. Downloaded ${fileName}${removedTextMsg}`);
         } catch (error) {
+          stopProgress(0, false);
           setStatus(error.message || "Conversion failed.", true);
         } finally {
           submitBtn.disabled = false;
