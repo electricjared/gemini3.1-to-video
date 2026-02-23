@@ -213,6 +213,14 @@
         font-size: 0.9rem;
         line-height: 1.35;
       }
+
+      .version {
+        margin-top: 6px;
+        text-align: right;
+        color: #9cc0bf;
+        font-size: 0.82rem;
+        letter-spacing: 0.01em;
+      }
     </style>
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
@@ -308,6 +316,7 @@
           </div>
         </form>
       </section>
+      <div class="version" id="versionText">Version: loading...</div>
     </main>
 
     <script>
@@ -322,6 +331,7 @@
       const progressWrapEl = document.getElementById("progressWrap");
       const progressBarEl = document.getElementById("progressBar");
       const progressPercentEl = document.getElementById("progressPercent");
+      const versionTextEl = document.getElementById("versionText");
       let progressTimer = null;
 
       function setStatus(message, isError = false) {
@@ -333,6 +343,25 @@
         if (!contentDisposition) return fallbackName;
         const match = contentDisposition.match(/filename="?([^";]+)"?/i);
         return match ? match[1] : fallbackName;
+      }
+
+      function getApiPrefix() {
+        return window.location.pathname.startsWith("/text-to-video") ? "/text-to-video" : "";
+      }
+
+      async function loadVersion() {
+        try {
+          const response = await fetch(`${getApiPrefix()}/api/version`);
+          if (!response.ok) {
+            throw new Error(`version status ${response.status}`);
+          }
+
+          const payload = await response.json();
+          const version = typeof payload.version === "string" && payload.version ? payload.version : "unknown";
+          versionTextEl.textContent = `Version: ${version}`;
+        } catch {
+          versionTextEl.textContent = "Version: unknown";
+        }
       }
 
       function setProgress(value) {
@@ -513,8 +542,7 @@
         setStatus("Rendering frames and encoding video. This can take 10-60 seconds...");
 
         try {
-          const apiPrefix = window.location.pathname.startsWith("/text-to-video") ? "/text-to-video" : "";
-          const response = await fetch(`${apiPrefix}/api/convert`, {
+          const response = await fetch(`${getApiPrefix()}/api/convert`, {
             method: "POST",
             body: data,
           });
@@ -556,6 +584,8 @@
           stripTextBtn.disabled = false;
         }
       });
+
+      loadVersion();
     </script>
   </body>
 </html>

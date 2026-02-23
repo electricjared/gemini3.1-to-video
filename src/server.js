@@ -1,6 +1,7 @@
 const path = require("node:path");
 const os = require("node:os");
 const fs = require("node:fs/promises");
+const { execSync } = require("node:child_process");
 const express = require("express");
 const multer = require("multer");
 const { randomUUID } = require("node:crypto");
@@ -10,6 +11,23 @@ const { analyzeSvgText, extractSvg, parseConvertOptions, stripSvgTextElements } 
 const app = express();
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 const maxUploadMb = Number.parseInt(process.env.MAX_UPLOAD_MB || "10", 10);
+const repoRoot = path.join(__dirname, "..");
+
+function resolveAppVersion() {
+  if (process.env.APP_VERSION && process.env.APP_VERSION.trim()) {
+    return process.env.APP_VERSION.trim();
+  }
+
+  try {
+    return execSync("git rev-parse --short HEAD", { cwd: repoRoot, stdio: ["ignore", "pipe", "ignore"] })
+      .toString("utf8")
+      .trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+const appVersion = resolveAppVersion();
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -22,6 +40,10 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true, service: "animation-video-converter" });
+});
+
+app.get("/api/version", (_req, res) => {
+  res.json({ version: appVersion });
 });
 
 function readAnimationCode(req) {
