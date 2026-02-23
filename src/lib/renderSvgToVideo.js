@@ -4,6 +4,15 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { chromium } = require("playwright");
 
+let ffmpegStaticPath;
+try {
+  // Optional dependency fallback for hosts without system ffmpeg (for example Vercel).
+  // eslint-disable-next-line global-require
+  ffmpegStaticPath = require("ffmpeg-static");
+} catch {
+  ffmpegStaticPath = undefined;
+}
+
 function buildHtml(svgContent, width, height, backgroundColor) {
   return `<!doctype html>
 <html>
@@ -99,7 +108,7 @@ async function renderSvgToMp4({
   fps,
   crf,
   backgroundColor,
-  ffmpegPath = process.env.FFMPEG_PATH || "ffmpeg",
+  ffmpegPath = process.env.FFMPEG_PATH || ffmpegStaticPath || "ffmpeg",
 }) {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "svgvid-"));
   const framesDir = path.join(tempRoot, "frames");
@@ -114,6 +123,7 @@ async function renderSvgToMp4({
   try {
     browser = await chromium.launch({
       headless: true,
+      executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined,
       args: ["--disable-gpu", "--no-sandbox", "--disable-setuid-sandbox"],
     });
 

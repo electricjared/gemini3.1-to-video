@@ -83,6 +83,22 @@ npx playwright install chromium
 PORT=3000 npm start
 ```
 
+### Option C: Vercel (works with limits)
+
+If you deploy on Vercel and see:
+`browserType.launch: Executable doesn't exist ... please run npx playwright install`
+
+do this:
+
+1. Use this repo version that includes a `postinstall` hook to run `playwright install chromium` during build.
+2. In Vercel project settings, set environment variable:
+   - `PLAYWRIGHT_BROWSERS_PATH=0` (for Build + Runtime)
+3. Redeploy.
+
+Notes:
+- This app is CPU-heavy (frame rendering + video encode). Large/long jobs may exceed Vercel function limits.
+- `ffmpeg-static` is included as a fallback when system `ffmpeg` is not present.
+
 ## 5. New animation workflow (generation -> export -> upload)
 
 ### Repeatable creator workflow
@@ -142,6 +158,8 @@ Then open a PR to `main`.
 - `PORT` (default `3000`)
 - `MAX_UPLOAD_MB` (default `10`)
 - `FFMPEG_PATH` (default `ffmpeg`)
+- `PLAYWRIGHT_BROWSERS_PATH` (`0` recommended for Vercel)
+- `PLAYWRIGHT_EXECUTABLE_PATH` (optional explicit Chromium path)
 
 ## Notes on animation compatibility
 

@@ -8,10 +8,12 @@
     "start": "node src/server.js",
     "dev": "NODE_ENV=development node --watch src/server.js",
     "convert": "node scripts/convert.js",
-    "check": "node --check src/server.js && node --check src/lib/renderSvgToVideo.js && node --check src/lib/options.js && node --check scripts/convert.js"
+    "postinstall": "node scripts/install-runtime-deps.js",
+    "check": "node --check src/server.js && node --check src/lib/renderSvgToVideo.js && node --check src/lib/options.js && node --check scripts/convert.js && node --check scripts/install-runtime-deps.js"
   },
   "dependencies": {
     "express": "^4.21.2",
+    "ffmpeg-static": "^5.2.0",
     "multer": "^1.4.5-lts.1",
     "playwright": "^1.51.1"
   }
